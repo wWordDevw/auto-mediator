@@ -20,12 +20,18 @@ import json
 import os
 import random
 import sys
+import time
 import urllib.error
 import urllib.request
 
 
-def call_model(m: dict, messages: list, temperature: float, timeout: int) -> str:
-    """POST to an OpenAI-compatible /chat/completions endpoint. Returns the text, or raises."""
+def call_model(m: dict, messages: list, temperature: float, timeout: int, retries: int = 2) -> str:
+    """POST to an OpenAI-compatible /chat/completions endpoint. Returns the text, or raises.
+
+    Retries transient failures (timeouts and 5xx) with a short backoff; does NOT retry
+    4xx (wrong model, bad auth) since those won't fix themselves. Reasoning models can be
+    slow, so give them a generous `timeout` in the config.
+    """
     key = os.environ.get(m.get("api_key_env", ""), "")
     body = json.dumps({"model": m["model"], "messages": messages, "temperature": temperature}).encode()
     req = urllib.request.Request(
@@ -34,9 +40,22 @@ def call_model(m: dict, messages: list, temperature: float, timeout: int) -> str
         headers={"Content-Type": "application/json", "Authorization": f"Bearer {key}"},
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=timeout) as r:
-        data = json.loads(r.read().decode())
-    return data["choices"][0]["message"]["content"].strip()
+    last_err = None
+    for attempt in range(retries + 1):
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                data = json.loads(r.read().decode())
+            return data["choices"][0]["message"]["content"].strip()
+        except urllib.error.HTTPError as e:
+            if e.code < 500 or attempt == retries:  # client error, or out of retries
+                raise
+            last_err = e
+        except (urllib.error.URLError, TimeoutError) as e:
+            if attempt == retries:
+                raise
+            last_err = e
+        time.sleep(1.5 * (attempt + 1))
+    raise last_err  # pragma: no cover
 
 
 def ask(m: dict, prompt: str, cfg: dict) -> str:

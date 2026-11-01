@@ -1,5 +1,5 @@
 {
-  "comment": "Each model is an OpenAI-compatible chat endpoint. 'api_key_env' names the environment variable holding its key. Mix providers for real diversity. 'chair' must match one model 'name'.",
+  "comment": "Each model is an OpenAI-compatible chat endpoint. 'api_key_env' names the environment variable holding its key. Mix providers for real diversity. 'chair' must match one model 'name'. Reasoning models can be slow — raise 'timeout_seconds' if a model times out. A model that fails or times out is skipped; the council proceeds as long as >=2 answer.",
   "models": [
     {
       "name": "gpt",
@@ -22,5 +22,5 @@
   ],
   "chair": "gpt",
   "temperature": 0.3,
-  "timeout_seconds": 120
+  "timeout_seconds": 180
 }
