@@ -1,26 +1,11 @@
 {
-  "comment": "Each model is an OpenAI-compatible chat endpoint. 'api_key_env' names the environment variable holding its key. Mix providers for real diversity. 'chair' must match one model 'name'. Reasoning models can be slow — raise 'timeout_seconds' if a model times out. A model that fails or times out is skipped; the council proceeds as long as >=2 answer.",
+  "comment": "Each model is an OpenAI-compatible chat endpoint. 'api_key_env' names the environment variable holding its key. Mix PROVIDERS (different lineages) for real diversity — that is what adds reasoning coverage, not more clones of one model. 'chair' must match one model 'name'. A model that fails or times out is skipped; the council proceeds as long as >=1 answers. Reasoning models can be slow — raise 'timeout_seconds' if one times out.",
   "models": [
-    {
-      "name": "gpt",
-      "base_url": "https://api.openai.com/v1",
-      "model": "gpt-4o",
-      "api_key_env": "OPENAI_API_KEY"
-    },
-    {
-      "name": "claude-via-gateway",
-      "base_url": "https://your-openai-compatible-gateway/v1",
-      "model": "claude-3-5-sonnet",
-      "api_key_env": "GATEWAY_API_KEY"
-    },
-    {
-      "name": "local",
-      "base_url": "http://localhost:11434/v1",
-      "model": "llama3.1:70b",
-      "api_key_env": "LOCAL_API_KEY"
-    }
+    { "name": "openai",   "base_url": "https://api.openai.com/v1",                               "model": "gpt-4o-mini",      "api_key_env": "OPENAI_API_KEY" },
+    { "name": "gemini",   "base_url": "https://generativelanguage.googleapis.com/v1beta/openai", "model": "gemini-3.5-flash", "api_key_env": "GEMINI_API_KEY" },
+    { "name": "deepseek", "base_url": "https://api.deepseek.com",                                 "model": "deepseek-chat",    "api_key_env": "DEEPSEEK_API_KEY" }
   ],
-  "chair": "gpt",
-  "temperature": 0.3,
-  "timeout_seconds": 180
+  "chair": "openai",
+  "temperature": 0.4,
+  "timeout_seconds": 90
 }

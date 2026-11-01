@@ -5,13 +5,15 @@ Escalation path for high-stakes decisions (see COUNCIL.md). Runs any set of
 OpenAI-compatible chat models through three stages: independent analysis ->
 anonymous peer review -> synthesis by a chair.
 
+`deliberate()` is the reusable entry point (quiet when verbose=False) so other
+tools — e.g. the eval harness — can use the council as a solver.
+
 Stdlib only (Python 3.8+). Reference template — read it, adapt it.
 
 Usage:
     cp config.example.json config.json   # edit with your models
     export OPENAI_API_KEY=...            # and any other keys your config names
     python council.py "Your decision or question here"
-    python council.py --config config.json "..."
 """
 from __future__ import annotations
 
@@ -67,8 +69,13 @@ def ask(m: dict, prompt: str, cfg: dict) -> str:
     )
 
 
-def stage_independent(models: list, question: str, cfg: dict) -> dict:
-    print("\n=== Stage 1: independent analysis ===")
+def _log(verbose: bool, *a, **k):
+    if verbose:
+        print(*a, **k)
+
+
+def stage_independent(models: list, question: str, cfg: dict, verbose: bool = True) -> dict:
+    _log(verbose, "\n=== Stage 1: independent analysis ===")
     out = {}
     prompt = (
         f"Analyze this decision/question independently and give your reasoned verdict.\n\n{question}\n\n"
@@ -77,15 +84,15 @@ def stage_independent(models: list, question: str, cfg: dict) -> dict:
     for m in models:
         try:
             out[m["name"]] = ask(m, prompt, cfg)
-            print(f"  [{m['name']}] ok ({len(out[m['name']])} chars)")
+            _log(verbose, f"  [{m['name']}] ok ({len(out[m['name']])} chars)")
         except (urllib.error.URLError, KeyError, TimeoutError) as e:
             print(f"  [{m['name']}] FAILED: {type(e).__name__}: {e}", file=sys.stderr)
     return out
 
 
-def stage_review(models: list, question: str, answers: dict, cfg: dict) -> dict:
+def stage_review(models: list, question: str, answers: dict, cfg: dict, verbose: bool = True) -> dict:
     """Each model reviews all answers, anonymized and shuffled."""
-    print("\n=== Stage 2: anonymous peer review ===")
+    _log(verbose, "\n=== Stage 2: anonymous peer review ===")
     items = list(answers.items())
     random.shuffle(items)
     labels = [chr(ord("A") + i) for i in range(len(items))]
@@ -99,16 +106,17 @@ def stage_review(models: list, question: str, answers: dict, cfg: dict) -> dict:
     for m in models:
         try:
             reviews[m["name"]] = ask(m, prompt, cfg)
-            print(f"  [{m['name']}] reviewed")
+            _log(verbose, f"  [{m['name']}] reviewed")
         except (urllib.error.URLError, KeyError, TimeoutError) as e:
             print(f"  [{m['name']}] FAILED: {type(e).__name__}: {e}", file=sys.stderr)
     return reviews
 
 
-def stage_synthesis(chair: dict, question: str, answers: dict, reviews: dict, cfg: dict) -> str:
-    print(f"\n=== Stage 3: synthesis (chair = {chair['name']}) ===")
+def stage_synthesis(chair: dict, question: str, answers: dict, reviews: dict, cfg: dict,
+                    verbose: bool = True, final_format: str | None = None) -> str:
+    _log(verbose, f"\n=== Stage 3: synthesis (chair = {chair['name']}) ===")
     ans = "\n\n".join(f"- {n}: {t}" for n, t in answers.items())
-    rev = "\n\n".join(f"- {n}: {t}" for n, t in reviews.items())
+    rev = "\n\n".join(f"- {n}: {t}" for n, t in reviews.items()) if reviews else "(no peer reviews)"
     prompt = (
         f"You chair a council. Question:\n{question}\n\nAdvisors' analyses:\n{ans}\n\n"
         f"Advisors' peer reviews:\n{rev}\n\n"
@@ -116,7 +124,23 @@ def stage_synthesis(chair: dict, question: str, answers: dict, reviews: dict, cf
         "(2) where the council AGREED, (3) where it SPLIT and why, "
         "(4) the cheapest evidence that would settle the split. Do not paper over disagreement."
     )
+    if final_format:
+        prompt += f"\n\nEnd your answer with EXACTLY these lines:\n{final_format}"
     return ask(chair, prompt, cfg)
+
+
+def deliberate(models: list, question: str, cfg: dict, chair: dict,
+               verbose: bool = True, final_format: str | None = None) -> str:
+    """Full 3-stage council. Returns the chair's synthesis. Degrades if some models fail."""
+    answers = stage_independent(models, question, cfg, verbose)
+    if not answers:
+        raise RuntimeError("no models answered")
+    reviews = stage_review(models, question, answers, cfg, verbose) if len(answers) >= 2 else {}
+    return stage_synthesis(chair, question, answers, reviews, cfg, verbose, final_format)
+
+
+def pick_chair(models: list, cfg: dict) -> dict:
+    return next((m for m in models if m["name"] == cfg.get("chair")), models[0])
 
 
 def main() -> int:
@@ -131,14 +155,13 @@ def main() -> int:
     if len(models) < 2:
         print("A council needs at least 2 models. Edit your config.", file=sys.stderr)
         return 2
-    chair = next((m for m in models if m["name"] == cfg.get("chair")), models[0])
+    chair = pick_chair(models, cfg)
 
-    answers = stage_independent(models, args.question, cfg)
-    if len(answers) < 2:
-        print("Fewer than 2 models answered; cannot hold a council.", file=sys.stderr)
+    try:
+        verdict = deliberate(models, args.question, cfg, chair, verbose=True)
+    except RuntimeError as e:
+        print(f"Council could not run: {e}", file=sys.stderr)
         return 1
-    reviews = stage_review(models, args.question, answers, cfg)
-    verdict = stage_synthesis(chair, args.question, answers, reviews, cfg)
 
     print("\n" + "=" * 60 + "\nCOUNCIL VERDICT\n" + "=" * 60)
     print(verdict)
