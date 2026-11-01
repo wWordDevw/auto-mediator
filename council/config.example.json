@@ -1,0 +1,26 @@
+{
+  "comment": "Each model is an OpenAI-compatible chat endpoint. 'api_key_env' names the environment variable holding its key. Mix providers for real diversity. 'chair' must match one model 'name'.",
+  "models": [
+    {
+      "name": "gpt",
+      "base_url": "https://api.openai.com/v1",
+      "model": "gpt-4o",
+      "api_key_env": "OPENAI_API_KEY"
+    },
+    {
+      "name": "claude-via-gateway",
+      "base_url": "https://your-openai-compatible-gateway/v1",
+      "model": "claude-3-5-sonnet",
+      "api_key_env": "GATEWAY_API_KEY"
+    },
+    {
+      "name": "local",
+      "base_url": "http://localhost:11434/v1",
+      "model": "llama3.1:70b",
+      "api_key_env": "LOCAL_API_KEY"
+    }
+  ],
+  "chair": "gpt",
+  "temperature": 0.3,
+  "timeout_seconds": 120
+}
