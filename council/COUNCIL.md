@@ -32,3 +32,16 @@ Each model entry names the env var that holds its key, so you can mix providers 
 server, an OpenAI-compatible gateway, etc.). Diversity of *providers* beats several calls to one model.
 
 It is a **reference template**, deliberately small and readable — adapt it, don't treat it as a framework.
+
+## Cost & latency controls
+
+- **Parallel stages** — the N independent and N review calls run concurrently, so wall-time is roughly one
+  call per stage instead of N.
+- **Early stop** — if the independent round already reaches a verdict consensus, the council skips review and
+  synthesis (the bulk of the cost) and returns the consensus. Debate only happens when there's disagreement.
+- **Budget** — `max_calls` / `max_tokens` in the config cap an intervention; they are a limit, not a target
+  (the council stops early if it doesn't need them).
+- **Meter** — `get_meter()` reports real calls and tokens, so cost is measurable (see `eval/`).
+- **Roles** (optional, `--roles`) — assign proposer / critic / verifier in round 1 instead of the same prompt
+  to every model, for functional (not just lineage) diversity.
+
