@@ -24,7 +24,7 @@ import sys
 import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "council"))
-from council import call_model, deliberate, pick_chair, get_meter  # noqa: E402
+from council import call_model, deliberate, pick_chair, get_meter, reset_meter  # noqa: E402
 
 FORMAT = ("VERDICT: <one of: {opts}>\nKEY_REASON: <one short phrase>\nCONFIDENCE: <0-100>")
 ASK = "\n\nReason briefly, then end with EXACTLY these three lines:\n" + FORMAT
@@ -113,13 +113,15 @@ def main() -> int:
     print(f"Suite: {len(cases)} cases | {label}\n")
     by_cat = collections.defaultdict(lambda: [0, 0])
     n_correct = reason_num = reason_den = 0
-    brier = brier_n = calls0 = tok0 = 0
+    brier = brier_n = calls_total = toks_total = 0
     conf_correct, conf_wrong = [], []
-    base = get_meter()
-    calls0, tok0 = base["calls"], base["prompt_tokens"] + base["completion_tokens"]
     t0 = time.time()
     for c in cases:
+        reset_meter()                        # budget (max_calls/max_tokens) is per-case, not global
         winner, reason_ok, conf = solver(c)
+        mt = get_meter()                     # NB: not `m` — that name is the model dict in the solver closure
+        calls_total += mt["calls"]
+        toks_total += mt["prompt_tokens"] + mt["completion_tokens"]
         correct = winner == c["expected"].upper()
         n_correct += correct
         by_cat[c["category"]][0] += correct
@@ -137,9 +139,7 @@ def main() -> int:
               f" conf={conf if conf is not None else '-'}{rtag}")
 
     dt = time.time() - t0
-    mt = get_meter()
-    calls = mt["calls"] - calls0
-    toks = (mt["prompt_tokens"] + mt["completion_tokens"]) - tok0
+    calls, toks = calls_total, toks_total
     n = len(cases)
     print(f"\n=== ACCURACY: {n_correct}/{n} = {n_correct/n*100:.0f}% ===")
     for cat, (ok, tot) in sorted(by_cat.items()):
