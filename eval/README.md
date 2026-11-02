@@ -38,14 +38,23 @@ vs wrong — a small/negative gap means overconfidence), and the call cost.
 
 ## What the numbers already show (why this beats anecdotes)
 
-Measured on this suite, varying one parameter at a time:
+Measured on the full 20-case suite, varying one parameter at a time:
 
-- **Stronger model** (gpt-4o vs gpt-4o-mini): same verdict accuracy, but right-for-right-reason 50%→60% — it
-  reaches correct conclusions via correct reasoning more often.
-- **Harder cases de-saturate the oracle:** gpt-4o-mini scores 19/20, and its one miss (`cuda-cpu`) comes with
-  *higher* confidence than its average correct answer — overconfidence on the error, now visible.
-- **Cross-lineage council** (`--council`): fixed the single-model miss (`cuda-cpu`) and scored 8/8 on a mixed
-  subset. Different training lineages cover each other's blind spots — the parameter paying off, on the suite.
+| Config | Verdict acc. | Right-for-right-reason | Calibration (Brier) |
+|---|---|---|---|
+| `gpt-4o-mini` (single) | 19/20 (95%) | 65% | 0.080 |
+| council — 2 lineages (OpenAI + DeepSeek) | 20/20 | 60% | 0.019 |
+| **council — 3 lineages (OpenAI + Gemini + DeepSeek)** | **20/20** | **70%** | **0.012** |
+
+- **Verdict accuracy saturates, the *reason* is the signal.** A capable model gets most verdicts right;
+  the discriminator is whether it got there via the correct reason. `gpt-4o-mini`'s one miss (`cuda-cpu`)
+  came with *higher* confidence than its average correct answer — overconfidence on the error, now visible.
+- **Cross-lineage diversity is the lever that pays.** Adding a genuinely different lineage (Gemini) lifted
+  right-for-right-reason **60% → 70%** and fixed the single-model miss. More clones of one model wouldn't;
+  different training lineages cover each other's blind spots — the ensemble-heterogeneity parameter, measured
+  on a held-out distribution rather than an anecdote.
+- The 3-lineage run cost 60 calls / ~16.8k tokens / 142s for 20 cases (Gemini participating means more real
+  debate and fewer early-stops than a 2-model run that agrees quickly).
 
 ## Honest limits
 
